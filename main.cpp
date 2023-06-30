@@ -16,6 +16,34 @@ gambatte::uint_least32_t audioBuf[(35112 + 2064) * 2] = {0};
 gambatte::uint_least32_t videoBuf[160*144] = {0};
 std::ptrdiff_t video_pitch = 160;
 
+void encode_frame(runner_t* runner)
+{
+    if(runner->state.curr_work->out_encoder)
+    {
+        atg_dtv::Frame *newFrame = runner->state.curr_work->out_encoder->newFrame(true);
+        if(newFrame == nullptr)
+            return;
+        if(runner->state.curr_work->out_encoder->getError() != atg_dtv::Encoder::Error::None)
+        {
+            printf("Error encoding: %x\n",runner->state.curr_work->out_encoder->getError());
+            return;
+        }
+        const int lineWidth = newFrame->m_lineWidth;
+        for(int y=0; y<144; y++)
+        {
+            uint8_t *row = &newFrame->m_rgb[y*lineWidth];
+            for(int x=0; x<video_pitch; x++)
+            {
+                gambatte::uint_least32_t pixel = videoBuf[x+y*video_pitch];
+                const int i = x*3;
+                row[i+0] = pixel&0xff;
+                row[i+1] = (pixel>>8)&0xff;
+                row[i+2] = (pixel>>16)&0xff;
+            }
+        }
+        runner->state.curr_work->out_encoder->submitFrame();
+    }
+}
 
 int gambatte_step()
 {
@@ -52,13 +80,20 @@ int load_state_if_needed()
             std::string savestate_file = state->curr_work->savestate_file;
             gb->loadState(savestate_file);
             //gambatte_step(); //Step once to finish current frame
-            return 1;
         }
         else
         {
             gb->reset(0);
-            return 1;
         }
+        if(state->curr_work->out_encoder)
+        {
+            gb->setSpeedupFlags(0); //If we want to encode video, reenable video writes
+        }
+        else
+        {
+            gb->setSpeedupFlags(1|4); //No sound, no video
+        }
+        return 1;
     }
     return 0;
 }
@@ -115,7 +150,6 @@ int main(int argc, char* argv[])
     }
 
     gb->setCartBusPullUpTime(8);
-    gb->setSpeedupFlags(1|4); //No sound, no video
 
     std::string romPath = argv[1];
     printf("Loading rom: %s\n", argv[1]);
@@ -126,7 +160,7 @@ int main(int argc, char* argv[])
         printf("Couldn't load rom %s, error: %s\n", argv[1], to_string(load_result).c_str());
         return -1;
     }
-
+    init_global_video();
     runner_init(&runner);
     gb->setInputGetter(gambatte_runner_get_input, &runner);
 
@@ -141,6 +175,7 @@ int main(int argc, char* argv[])
         {
             load_state_if_needed();
             step();
+            encode_frame(&runner);
             if(runner_advance(&runner)) //runner is done with work
             {
                 printf("Workitem done: %lu/%lu\n", runner.state.curr_frame, runner.state.curr_work->num_inputs);

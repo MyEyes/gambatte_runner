@@ -5,16 +5,20 @@ EXE = gambatte_runner
 
 EMULATOR_INCLUDE = gambatte-core/libgambatte/include
 EMULATOR_LIB = gambatte-core/libgambatte/libgambatte.so
+DTV_INCLUDE = direct-to-video/include
+DTV_LIB = dtv_build/libdirect-to-video.a
 LOCAL_LIB = $(notdir $(EMULATOR_LIB))
+
+FFMPEG_LIBS = -lavcodec -lswresample -lavutil -lavformat -lswscale
 
 SOURCES += workitem.cpp runner.cpp main.cpp
 OBJS = $(addprefix $(EMULATOR_HEADLESS_SRC)/, $(addsuffix .o, $(basename $(notdir $(CORE_SOURCES)))))
 
 OBJS = $(addsuffix .o, $(basename $(notdir $(SOURCES))))
 
-CXXFLAGS = -I$(EMULATOR_INCLUDE)
+CXXFLAGS = -I$(EMULATOR_INCLUDE) -I$(DTV_INCLUDE)
 CXXFLAGS += -Wall -Wextra -Wformat -std=c++11 -DHAVE_STDINT_H
-LIBS = -lgambatte
+LIBS = -lgambatte -l:$(DTV_LIB) $(FFMPEG_LIBS)
 
 DEBUG ?= 0
 ifeq ($(DEBUG), 1)

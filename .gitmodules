@@ -1,3 +1,6 @@
 [submodule "gambatte-core"]
 	path = gambatte-core
 	url = git@github.com:MyEyes/gambatte-core.git
+[submodule "direct-to-video"]
+	path = direct-to-video
+	url = git@github.com:MyEyes/direct-to-video.git
