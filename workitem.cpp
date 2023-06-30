@@ -100,6 +100,7 @@ extern "C"
             printf("Need to specify output file\n");
             return -1;
         }
+        close(fd);
         return 0;
     }
 }
