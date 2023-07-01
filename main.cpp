@@ -10,11 +10,59 @@
 static runner_t runner;
 static gambatte::GB *gb;
 
+//enum Button { A     = 0x01, B    = 0x02, SELECT = 0x04, START = 0x08,
+//	              RIGHT = 0x10, LEFT = 0x20, UP     = 0x40, DOWN  = 0x80 };
+uint8_t inputGlyphs[] = {
+    0,0,1,0,0, 1,1,1,1,0, 0,0,0,0,0, 0,1,1,1,1, 1,1,0,0,0, 0,0,0,1,1, 0,0,1,0,0, 1,1,1,1,1,
+    0,1,0,1,0, 1,0,0,0,1, 0,0,1,1,0, 1,0,0,0,0, 1,1,1,1,0, 0,1,1,1,1, 0,1,1,1,0, 1,1,1,1,1,
+    1,0,0,0,1, 1,1,1,1,0, 0,1,0,0,0, 0,1,1,1,0, 1,1,1,1,1, 1,1,1,1,1, 0,1,1,1,0, 0,1,1,1,0,
+    1,1,1,1,1, 1,0,0,0,1, 0,0,1,1,0, 0,0,0,0,1, 1,1,1,1,0, 0,1,1,1,1, 1,1,1,1,1, 0,1,1,1,0,
+    1,0,0,0,1, 1,1,1,1,0, 0,1,1,1,0, 1,1,1,1,1, 1,1,0,0,0, 0,0,0,1,1, 1,1,1,1,1, 0,0,1,0,0,
+};
+
 unsigned overflowSamples = 0;
 const unsigned SAMPLES_PER_FRAME = 35112;
 gambatte::uint_least32_t audioBuf[(35112 + 2064) * 2] = {0};
 gambatte::uint_least32_t videoBuf[160*144] = {0};
 std::ptrdiff_t video_pitch = 160;
+
+void overlay_input_glyph(atg_dtv::Frame *frame, int x, int y, int glyph)
+{
+    int off = glyph*5;
+    int offPerRow = 5*8;
+    const int lineWidth = frame->m_lineWidth;
+    for(int gy=0; gy<5; gy++)
+    {
+        uint8_t* glyph_row = &inputGlyphs[gy*offPerRow+off];
+        uint8_t *row = &frame->m_rgb[(y+gy)*lineWidth];
+        for(int gx=0; gx<5; gx++)
+        {
+            if(glyph_row[gx])
+            {
+                uint8_t on = glyph_row[gx] ? 0 : 255;
+                const int i = (x+gx)*3;
+                row[i+0] = on;
+                row[i+1] = on;
+                row[i+2] = on;
+            }
+        }
+    }
+}
+
+void overlay_input(runner_t* runner, atg_dtv::Frame *frame)
+{
+    const int offsetPerGlyph = 7;
+    const int baseOffsetX = 10;
+    const int baseOffsetY = 10;
+    uint8_t input = runner_get_input(runner);
+    for(int i=0; i<8; i++)
+    {
+        if(input & (1<<i))
+        {
+            overlay_input_glyph(frame, baseOffsetX+offsetPerGlyph*i, baseOffsetY, i);
+        }
+    }
+}
 
 void encode_frame(runner_t* runner)
 {
@@ -41,6 +89,7 @@ void encode_frame(runner_t* runner)
                 row[i+2] = (pixel>>16)&0xff;
             }
         }
+        overlay_input(runner, newFrame);
         runner->state.curr_work->out_encoder->submitFrame();
     }
 }
